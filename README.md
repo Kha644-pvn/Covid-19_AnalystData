@@ -707,8 +707,42 @@ Quá trình tiền xử lý dữ liệu đóng vai trò quan trọng trong việ
 ### Bước 1: Đọc và kết hợp dữ liệu
 Hai file dữ liệu gốc `covid_data.csv` và `column_final_data.csv` được đọc. Hai cột `ICU` và `hospital` được trích xuất từ tập dữ liệu gốc và merge vào tập dữ liệu chính theo khóa `country` và `date`.
 
-> 📷 **Hình 2.1:** *Code đọc và kết hợp dữ liệu*
-> *(Bạn có thể chèn ảnh hoặc chèn khối code Python của bước này vào đây)*
+> 📷 **Hình 2.1:** *Code đọc và kết hợp dữ liệu
+```python
+# =================================================================
+# 1. Đọc dữ liệu
+# =================================================================
+df_final = pd.read_csv("column_final_data.csv", parse_dates=['date'])
+df_raw   = pd.read_csv("covid_data.csv", parse_dates=['date'])
+
+# =================================================================
+# 2. Chọn 2 cột cần lấy từ file gốc
+# =================================================================
+cols_needed = [
+    'country',
+    'date',
+    'icu_patients_per_million',
+    'hosp_patients_per_million'
+]
+
+df_extra = df_raw[cols_needed]
+
+# =================================================================
+# 3. Merge vào dataset đã xử lý
+# =================================================================
+df_merged = pd.merge(
+    df_final,
+    df_extra,
+    on=['country', 'date'],
+    how='left'
+)
+
+# =================================================================
+# 4. Kiểm tra
+# =================================================================
+print("Sau khi merge:", df_merged.shape)
+print(df_merged[['icu_patients_per_million', 'hosp_patients_per_million']].isnull().sum())
+```
 
 ---
 
