@@ -699,4 +699,71 @@ Số cụm tối ưu k  : 3 (Silhouette = 0.3554)
 
 ***
 # 4. Phân tích thuật toán ARIMA
+## 4.1. Tiền xử lý dữ liệu
+Quá trình tiền xử lý dữ liệu đóng vai trò quan trọng trong việc đảm bảo chất lượng dữ liệu đầu vào cho các mô hình học máy. Trong bài toán phân tích dữ liệu COVID-19 theo chuỗi thời gian, dữ liệu ban đầu được thu thập từ nhiều nguồn, có thể tồn tại giá trị thiếu, nhiễu và không đồng nhất. Một **pipeline tiền xử lý gồm 8 bước** đã được xây dựng nhằm chuẩn hóa và làm giàu dữ liệu.
+
+---
+
+### Bước 1: Đọc và kết hợp dữ liệu
+Hai file dữ liệu gốc `covid_data.csv` và `column_final_data.csv` được đọc. Hai cột `ICU` và `hospital` được trích xuất từ tập dữ liệu gốc và merge vào tập dữ liệu chính theo khóa `country` và `date`.
+
+> 📷 **Hình 2.1:** *Code đọc và kết hợp dữ liệu*
+> *(Bạn có thể chèn ảnh hoặc chèn khối code Python của bước này vào đây)*
+
+---
+
+### Bước 2: Xử lý giá trị thiếu (Missing Values)
+Các giá trị thiếu ở cột `ICU` và `hospital` được xử lý theo từng quốc gia bằng phương pháp **Forward Fill (ffill)**, và điền bằng `0` nếu không có giá trị trước đó.
+
+> 📷 **Hình 2.2:** *Code xử lý giá trị thiếu*
+
+---
+
+### Bước 3: Lọc và chuẩn hóa theo quốc gia
+Loại bỏ các dòng không thuộc về quốc gia cụ thể, tiến hành lọc ra 7 quốc gia tiêu biểu phục vụ nghiên cứu: **Mỹ, Trung Quốc, Ấn Độ, Brazil, Anh, Việt Nam và Nam Phi**.
+
+> 📷 **Hình 2.3:** *Code lọc 7 quốc gia*
+
+---
+
+### Bước 4: Sắp xếp theo thời gian
+Sắp xếp dữ liệu theo thứ tự ưu tiên `country` và `date` để đảm bảo tính đúng đắn của chuỗi thời gian, tránh gây sai lệch khi tính toán các đặc trưng trễ (lag) hoặc cửa sổ trượt (rolling).
+
+> 📷 **Hình 2.4:** *Code sắp xếp thời gian*
+
+---
+
+### Bước 5: Xử lý giá trị âm
+Các cột dữ liệu dạng số ca mắc mới (`new_`) được kiểm tra và thay thế toàn bộ các giá trị âm (nếu có) bằng `0`.
+
+> 📷 **Hình 2.5:** *Code xử lý giá trị âm*
+
+---
+
+### Bước 6: Xử lý thiếu theo nhóm biến
+Quy tắc xử lý giá trị thiếu (`NaN`) được áp dụng linh hoạt theo từng nhóm thuộc tính:
+* **Cột tích lũy (`total_`, `people_`):** Áp dụng `forward fill` $\rightarrow$ các giá trị còn lại điền `0`.
+* **Cột theo ngày (`new_`):** Điền trực tiếp bằng `0`.
+* **Cột tĩnh nhân khẩu học (`population`, `GDP`,...):** Điền bằng giá trị `median` (trung vị) theo từng quốc gia $\rightarrow$ các phần còn lại điền `median` toàn bộ tập dữ liệu.
+* **Các cột chỉ số khác (`stringency`, `R`, `positive_rate`):** Áp dụng `forward fill` $\rightarrow$ các ô trống còn lại điền `median`.
+
+> 📷 **Hình 2.6:** *Code xử lý thiếu theo nhóm*
+
+---
+
+### Bước 7: Feature Engineering (Tạo đặc trưng mới)
+Tiến hành làm giàu tập dữ liệu phục vụ mô hình:
+* Làm mượt dữ liệu 7 ngày (`rolling mean`) cho các cột: `new_cases`, `new_deaths`, `new_cases_per_million`.
+* Tạo snapshot cuối kỳ: Tỷ lệ tử vong (`CFR`), Logarit của GDP (`GDP log`).
+* Phân chia dòng thời gian: Giai đoạn trước và sau khi có vaccine (`Pre/Post-vaccine`).
+* Tạo các đặc trưng trễ (`lag1`, `lag7`, `lag14`) và độ lệch chuẩn trượt 7 ngày (`rolling std 7 ngày`).
+
+> 📷 **Hình 2.7:** *Code tạo đặc trưng mới*
+
+---
+
+### Bước 8: Lưu dữ liệu
+File dữ liệu sau khi làm sạch hoàn chỉnh được xuất ra thành file `covid_analysis_ready.csv` để sẵn sàng đưa vào huấn luyện các mô hình học máy.
+
+> 📷 **Hình 2.8:** *Kết quả dataset sau tiền xử lý*
 # 5. Kết quả
