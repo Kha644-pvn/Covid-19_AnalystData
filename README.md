@@ -338,5 +338,365 @@ print(f"Total features: {len(SELECTED_FEATURES_HYBRID)}")
 
 ---
 # 3. Phân tích Clusting Code __ DTW + BIRCH
+### File: `3_model_clustering_v2.ipynb`
+
+#### Bước 1: Chọn quốc gia và Pivot dữ liệu
+
+```python
+CLUSTER_FEATURE = 'new_cases_custom_smoothed'
+
+# [Fix 1] 40 quốc gia CỐ ĐỊNH — đa dạng địa lý, không random
+# → reproducibility: mỗi lần chạy ra cùng kết quả
+COUNTRIES_40 = [
+    # Châu Á — Đông Nam Á & Đông Á
+    'Vietnam', 'Thailand', 'Indonesia', 'Philippines', 'Malaysia',
+    'South Korea', 'Japan', 'China', 'Taiwan',
+    # Châu Á — Nam Á & Tây Á
+    'India', 'Bangladesh', 'Pakistan', 'Iran', 'Turkey',
+    # Châu Âu — Tây & Bắc
+    'United Kingdom', 'Germany', 'France', 'Italy', 'Spain',
+    'Netherlands', 'Sweden', 'Norway',
+    # Châu Âu — Đông
+    'Russia', 'Poland', 'Ukraine',
+    # Châu Mỹ — Bắc & Nam
+    'United States', 'Canada', 'Mexico',
+    'Brazil', 'Argentina', 'Colombia', 'Chile', 'Peru',
+    # Châu Phi
+    'South Africa', 'Nigeria', 'Egypt', 'Kenya', 'Morocco',
+    # Châu Đại Dương
+    'Australia', 'New Zealand',
+]
+
+# Lọc quốc gia thực sự có trong dữ liệu
+available = df['country'].unique().tolist()
+COUNTRIES  = [c for c in COUNTRIES_40 if c in available]
+missing    = [c for c in COUNTRIES_40 if c not in available]
+print(f"Sử dụng {len(COUNTRIES)} quốc gia (bỏ {len(missing)}: {missing})")
+
+df_cluster = df[df['country'].isin(COUNTRIES)].copy()
+
+# Long → Wide: mỗi quốc gia = 1 cột chuỗi thời gian
+pivot_df = df_cluster.pivot_table(
+    index='date', columns='country', values=CLUSTER_FEATURE
+)
+# Giữ chỉ quốc gia có đủ dữ liệu (missing < 5%)
+good_cols = pivot_df.columns[pivot_df.isnull().mean() < 0.05].tolist()
+pivot_df  = pivot_df[good_cols].fillna(0)
+COUNTRIES = good_cols
+```
+
+**Output thực tế:**
+
+```
+Sử dụng 40 quốc gia (bỏ 0 không có trong dữ liệu: [])
+Shape wide format : (2245, 39)
+Giai đoạn         : 2020-01-01 → 2026-02-22
+Missing sau lọc   : 0.0000
+```
+
+**Lý do dùng fixed list thay vì random:**
+
+| Tiêu chí        | Giải thích                                                           |
+| --------------- | -------------------------------------------------------------------- |
+| Reproducibility | Mỗi lần chạy ra cùng 39 quốc gia → so sánh được                      |
+| Đa dạng địa lý  | Phủ 6 khu vực: Đông Nam Á, Đông Á, Nam Á, Châu Âu, Châu Mỹ, Châu Phi |
+| Đa dạng quy mô  | Từ 450K dân (New Zealand) đến 1.4B (China)                           |
+| Không singleton | Mỗi cluster có ít nhất 3 quốc gia → Silhouette tính được             |
+
+#### Bước 2: Chuẩn hóa Min-Max per-country
+
+```python
+def normalize_minmax(series):
+    """
+    Min-Max normalization: đưa chuỗi về [0, 1].
+    Xử lý edge case: nếu min == max (chuỗi phẳng) → trả về toàn 0.
+    """
+    s_min, s_max = series.min(), series.max()
+    if s_max == s_min:
+        return pd.Series(np.zeros(len(series)), index=series.index)
+    return (series - s_min) / (s_max - s_min)
+
+normalized_df = pivot_df.apply(normalize_minmax, axis=0).fillna(0)
+series_list   = [normalized_df[c].values for c in COUNTRIES]
+```
+
+**Output thực tế:**
+
+```
+Số quốc gia  : 40
+Độ dài chuỗi : 2245 ngày
+Min / Max sau chuẩn hóa: 0.000 / 1.000
+```
+
+**Tại sao Min-Max không StandardScaler?**
+
+| Phương pháp        | Công thức                        | Phù hợp khi                          |
+| ------------------ | -------------------------------- | ------------------------------------ |
+| **Min-Max**        | (x - min) / (max - min) → \[0,1] | So sánh *hình dạng* curve ← **CHỌN** |
+| **StandardScaler** | (x - mean) / std → N(0,1)        | Phân phối chuẩn, so sánh *mức độ*    |
+
+→ **Min-Max tốt hơn cho DTW**: Mỹ (345,000 ca/ngày) không "xa" Việt Nam (8,000 ca/ngày) nếu shape curve giống nhau.
+
+#### Bước 3: Chọn DTW window tối ưu — \[Fix 2]
+
+```python
+def compute_dtw_matrix(series_list, countries, window=60, verbose=True):
+    """
+    Tính DTW distance matrix n×n.
+    window: Sakoe-Chiba constraint — giới hạn warping tối đa.
+    Normalize về [0,1] để so sánh giữa các window khác nhau.
+    """
+    n = len(series_list)
+    D = np.zeros((n, n))
+    if verbose:
+        print(f"Tính DTW (window={window}) cho {n} quốc gia ({n*(n-1)//2} cặp)...")
+    for i in range(n):
+        for j in range(i+1, n):
+            d = dtw_lib.distance(
+                series_list[i].astype(np.float64),
+                series_list[j].astype(np.float64),
+                window=window  # Sakoe-Chiba constraint
+            )
+            D[i, j] = D[j, i] = d
+    mx = D.max()
+    return D / mx if mx > 0 else D  # normalize [0,1]
+
+# [Fix 2] So sánh 3 mức window — chọn theo Cophenetic Correlation
+results_window = {}
+for w in [30, 60, 90]:
+    D    = compute_dtw_matrix(series_list, COUNTRIES, window=w, verbose=False)
+    cond = squareform(D)
+    Z    = linkage(cond, method='complete')
+    cop, _ = cophenet(Z, cond)
+    results_window[w] = {'matrix': D, 'linkage': Z, 'cophenetic': cop}
+    print(f"window={w:3d}: Cophenetic = {cop:.4f}")
+
+best_window = max(results_window, key=lambda w: results_window[w]['cophenetic'])
+print(f"\n→ Chọn window = {best_window} ngày (Cophenetic cao nhất)")
+
+dtw_matrix = results_window[best_window]['matrix']
+Z_complete = results_window[best_window]['linkage']
+
+# So sánh Complete vs Ward Linkage
+Z_ward    = linkage(squareform(dtw_matrix), method='ward')
+cop_c, _ = cophenet(Z_complete, squareform(dtw_matrix))
+cop_w, _ = cophenet(Z_ward,     squareform(dtw_matrix))
+print(f"  Complete : {cop_c:.4f}")
+print(f"  Ward     : {cop_w:.4f}")
+print(f"  → Sử dụng: {'Complete' if cop_c >= cop_w else 'Ward'}")
+```
+
+**Output thực tế:**
+
+```
+window= 30: Cophenetic = 0.7213
+window= 60: Cophenetic = 0.7285  ← Cao nhất
+window= 90: Cophenetic = 0.5366
+
+→ Chọn window = 60 ngày (Cophenetic cao nhất)
+
+Linkage so sánh (window=60):
+  Complete : 0.7285
+  Ward     : 0.5796
+  → Sử dụng: Complete
+```
+
+**DTW vs Euclidean Distance:**
+
+| Metric        | Ưu điểm                                        | Nhược điểm            | Phù hợp khi                      |
+| ------------- | ---------------------------------------------- | --------------------- | -------------------------------- |
+| **DTW**       | Bỏ qua time shift, capture sequence similarity | Chậm O(n²m)           | Series lệch thời gian ← **CHỌN** |
+| **Euclidean** | Nhanh O(mn)                                    | Nhạy cảm với time lag | Series đồng bộ                   |
+
+→ Đỉnh dịch Mỹ tháng 9/2021 và Nhật tháng 8/2021 lệch 4 tuần → DTW nhận ra chúng giống nhau, Euclidean không thể.
+
+**Cophenetic Correlation Coefficient** đo mức độ dendrogram phản ánh đúng ma trận distance gốc (1.0 = hoàn hảo). Window=60 cao hơn window=30 vì dịch bệnh giữa các khu vực địa lý thường lệch 1-2 tháng.
+
+#### Bước 4: Chọn số cụm tối ưu bằng Silhouette — \[Fix 3]
+
+```python
+print("=== Silhouette Score theo số cụm k ===")
+sil_scores = {}
+for k in range(2, 7):
+    labels = fcluster(Z_complete, k, criterion='maxclust')
+    # Kiểm tra không có singleton (cụm chỉ 1 phần tử)
+    counts       = pd.Series(labels).value_counts()
+    has_singleton = (counts == 1).any()
+    if has_singleton or len(np.unique(labels)) < k:
+        sil_scores[k] = -1
+        print(f"  k={k}: Có singleton cluster — bỏ qua")
+        continue
+    # metric='precomputed' vì dùng DTW distance matrix sẵn có
+    score = silhouette_score(dtw_matrix, labels, metric='precomputed')
+    sil_scores[k] = score
+    note = " ← Cao nhất" if score == max(v for v in sil_scores.values() if v > -1) else ""
+    print(f"  k={k}:  {score:.4f}  {note}")
+
+best_k     = max(sil_scores, key=lambda k: sil_scores[k])
+N_CLUSTERS = best_k
+print(f"\n→ Chọn k = {best_k} (Silhouette = {sil_scores[best_k]:.4f})")
+```
+
+**Output thực tế:**
+
+```
+=== Silhouette Score theo số cụm k ===
+  k=2:  0.3489
+  k=3:  0.3554  ← Cao nhất
+  k=4:  0.2357
+  k=5:  0.3080
+  k=6: Có singleton cluster — bỏ qua
+
+→ Chọn k = 3 (Silhouette = 0.3554)
+```
+
+**Silhouette Score ∈ \[-1, 1]:**
+
+| Giá trị | Ý nghĩa                                            |
+| ------- | -------------------------------------------------- |
+| Gần 1   | Điểm trong cluster gần nhau, xa cluster khác (tốt) |
+| Gần 0   | Điểm nằm ở biên giới giữa hai cluster              |
+| Âm      | Điểm bị phân nhầm cluster                          |
+
+→ 0.3554 là kết quả **tốt cho dữ liệu thực tế** — COVID là hiện tượng liên tục, không có ranh giới cluster tuyệt đối.
+
+#### Bước 5: Dendrogram và gán nhãn cluster
+
+```python
+cluster_labels_arr = fcluster(Z_complete, N_CLUSTERS, criterion='maxclust')
+
+cluster_result = pd.DataFrame({
+    'country': COUNTRIES,
+    'cluster': cluster_labels_arr
+}).sort_values('cluster').reset_index(drop=True)
+
+# Visualize dendrogram
+fig, ax = plt.subplots(figsize=(14, 6))
+dendrogram(
+    Z_complete,
+    labels=COUNTRIES,
+    leaf_rotation=45,
+    leaf_font_size=9,
+    color_threshold=dtw_matrix.max() * 0.6,  # ngưỡng màu cluster
+    ax=ax
+)
+ax.set_ylabel('DTW Distance (normalized)')
+ax.set_title(f'Dendrogram — Hierarchical Clustering (DTW window={best_window}, k={N_CLUSTERS})',
+             fontweight='bold')
+plt.savefig('../models_and_results/dendrogram.png', dpi=150)
+```
+
+**Output thực tế — 3 clusters:**
+
+```
+Cluster 1 "Làn sóng nhỏ"   (27 nước): Argentina, Australia, Bangladesh, Brazil,
+                             Canada, Chile, Colombia, Egypt, India, Iran,
+                             Indonesia, Italy, Kenya, Mexico, Morocco, Nigeria,
+                             Norway, Pakistan, Peru, Philippines, Poland, Russia,
+                             South Africa, Sweden, Turkey, UK, USA
+Cluster 2 "Kiểm soát tốt"  (3 nước) : China, Japan, South Korea
+Cluster 3 "Bùng phát vừa"  (9 nước) : France, Germany, Malaysia, Netherlands,
+                             New Zealand, Spain, Thailand, Ukraine, Vietnam
+```
+
+#### Bước 6: Phân tích và đặt tên cluster — \[Fix 4]
+
+```python
+df_cluster['cfr'] = df_cluster['total_deaths'] / df_cluster['total_cases'].replace(0, np.nan)
+cluster_result_full = pd.merge(df_cluster, cluster_result, on='country')
+
+cluster_stats = cluster_result_full.groupby('cluster').agg(
+    n_countries     = ('country',                   'nunique'),
+    cases_mean      = ('new_cases_custom_smoothed', 'mean'),
+    deaths_mean     = ('new_deaths_smoothed',        'mean'),
+    stringency_mean = ('stringency_index',           'mean'),
+    cfr_mean        = ('cfr',                        'mean'),
+).round(4)
+
+# [Fix 4] Đặt tên semantic dựa trên cases_mean (thấp → cao)
+sorted_clusters  = cluster_stats['cases_mean'].sort_values().index.tolist()
+semantic_names   = [
+    'Cluster Kiểm soát tốt',  # cases thấp nhất
+    'Cluster Làn sóng nhỏ',
+    'Cluster Bùng phát vừa',
+    'Cluster Bùng phát lớn',  # cases cao nhất
+]
+cluster_name_map = {}
+for rank, cid in enumerate(sorted_clusters):
+    name = semantic_names[rank] if rank < len(semantic_names) else f'Cluster {cid}'
+    cluster_name_map[cid] = name
+
+cluster_result['cluster_name'] = cluster_result['cluster'].map(cluster_name_map)
+
+# Lưu để Hybrid model đọc lại
+cluster_result.to_csv('../models_and_results/cluster_assignment.csv', index=False)
+```
+
+**Output thực tế — thống kê 3 clusters:**
+
+```
+         n_countries  cases_mean  deaths_mean  stringency_mean  cfr_mean
+cluster
+1 "Làn sóng nhỏ"    27   3748.75      84.72         32.63       0.0234
+2 "Kiểm soát tốt"    3   1935.94      34.62         41.16       0.0104
+3 "Bùng phát vừa"    9   5500.75      35.53         27.29       1.7273
+```
+
+**Phân tích ý nghĩa clusters:**
+
+| Cluster           | Profile                                                               | Lý giải                                              |
+| ----------------- | --------------------------------------------------------------------- | ---------------------------------------------------- |
+| **Kiểm soát tốt** | Cases thấp nhất (1,936), stringency cao nhất (41.2), CFR thấp (0.010) | Zero-COVID policy — China, Japan, South Korea        |
+| **Làn sóng nhỏ**  | Cases trung bình (3,749), deaths cao nhất (84.7)                      | Pattern nhiều làn sóng nhỏ liên tiếp                 |
+| **Bùng phát vừa** | Cases cao nhất (5,501) nhưng deaths thấp (35.5)                       | Mở cửa muộn + Omicron peak — Việt Nam thuộc nhóm này |
+
+#### Bước 7 & 8: Cluster Profiles và DTW Heatmap
+
+```python
+# Cluster Profiles — pattern dịch trung bình mỗi cluster
+colors = ['#1D9E75', '#378ADD', '#EF9F27']  # xanh lá, xanh dương, cam
+
+fig, axes = plt.subplots(1, n_clust, figsize=(4*n_clust, 5), sharey=True)
+for ax, (k, color) in zip(axes, zip(unique_clusters, colors)):
+    members = cluster_result[cluster_result['cluster']==k]['country'].tolist()
+    avail   = [c for c in members if c in normalized_df.columns]
+    arr     = np.array([normalized_df[c].values for c in avail])
+    mean_s  = arr.mean(axis=0)
+    std_s   = arr.std(axis=0)
+
+    for s in arr:
+        ax.plot(s, color=color, lw=0.8, alpha=0.15)  # individual curves (mờ)
+    ax.plot(mean_s, color=color, lw=2.5, label='Mean')  # mean curve (đậm)
+    ax.fill_between(range(len(mean_s)),
+                    np.maximum(mean_s - std_s, 0), mean_s + std_s,
+                    alpha=0.15, color=color)   # ±1 std band
+    if vax_idx:
+        ax.axvline(vax_idx, color='gray', lw=1.5,
+                   linestyle='--', alpha=0.7)  # vaccine milestone
+
+# DTW Heatmap — sắp xếp theo cluster để thấy block structure
+order    = cluster_result.sort_values('cluster')['country'].tolist()
+idx      = [COUNTRIES.index(c) for c in order if c in COUNTRIES]
+D_sorted = dtw_matrix[np.ix_(idx, idx)]
+
+sns.heatmap(
+    pd.DataFrame(D_sorted, index=order, columns=order),
+    annot=False, cmap='RdYlGn_r', ax=ax,
+    cbar_kws={'label': 'DTW Distance (normalized)'}
+)
+```
+
+**Output thực tế:**
+
+```
+=== TÓM TẮT ===
+Window tối ưu    : 60 ngày
+Cophenetic Corr. : 0.7285
+Số cụm tối ưu k  : 3 (Silhouette = 0.3554)
+Đã lưu: cluster_assignment.csv, cluster_profiles.png,
+        dtw_heatmap.png, dendrogram.png
+```
+
+***
 # 4. Phân tích thuật toán ARIMA
 # 5. Kết quả
