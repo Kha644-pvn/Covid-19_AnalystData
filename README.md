@@ -898,6 +898,8 @@ File dữ liệu sau khi làm sạch hoàn chỉnh được xuất ra thành fil
 ### 4.2.1. Khái niệm về chuỗi thời gian dừng (Stationary)
 Một chuỗi thời gian được gọi là dừng (stationary) khi các tính chất thống kê của nó — bao gồm giá trị trung bình, phương sai và cấu trúc tự tương quan — không thay đổi theo thời gian. Đây là điều kiện tiên quyết để áp dụng mô hình ARIMA, bởi các tham số của mô hình chỉ có ý nghĩa ổn định khi chuỗi dữ liệu thỏa mãn tính dừng. Trong thực tế, nhiều chuỗi thời gian như dữ liệu tiêm chủng tích lũy thường có xu hướng tăng dần theo thời gian, do đó cần được biến đổi trước khi đưa vào mô hình.
 Để kiểm định tính dừng, nghiên cứu sử dụng đồng thời hai kiểm định thống kê bổ sung cho nhau:
- * •	Kiểm định ADF (Augmented Dickey-Fuller): Giả thuyết H₀ cho rằng chuỗi có nghiệm đơn vị (non-stationary). Nếu p-value < 0.05, bác bỏ H₀ và kết luận chuỗi là dừng.
- * •	Kiểm định KPSS (Kwiatkowski-Phillips-Schmidt-Shin): Giả thuyết H₀ cho rằng chuỗi là dừng. Nếu p-value > 0.05, không bác bỏ H₀ và kết luận chuỗi là dừng.
+ * 	Kiểm định ADF (Augmented Dickey-Fuller): Giả thuyết H₀ cho rằng chuỗi có nghiệm đơn vị (non-stationary). Nếu p-value < 0.05, bác bỏ H₀ và kết luận chuỗi là dừng.
+ * 	Kiểm định KPSS (Kwiatkowski-Phillips-Schmidt-Shin): Giả thuyết H₀ cho rằng chuỗi là dừng. Nếu p-value > 0.05, không bác bỏ H₀ và kết luận chuỗi là dừng.
+Kết luận về tính dừng chỉ được xác nhận chắc chắn khi cả hai kiểm định đồng thuận, tránh trường hợp kết quả mâu thuẫn do đặc thù của từng phương pháp.
+### 
 # 5. Kết quả
