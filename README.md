@@ -901,5 +901,24 @@ Một chuỗi thời gian được gọi là dừng (stationary) khi các tính 
  * 	Kiểm định ADF (Augmented Dickey-Fuller): Giả thuyết H₀ cho rằng chuỗi có nghiệm đơn vị (non-stationary). Nếu p-value < 0.05, bác bỏ H₀ và kết luận chuỗi là dừng.
  * 	Kiểm định KPSS (Kwiatkowski-Phillips-Schmidt-Shin): Giả thuyết H₀ cho rằng chuỗi là dừng. Nếu p-value > 0.05, không bác bỏ H₀ và kết luận chuỗi là dừng.
 Kết luận về tính dừng chỉ được xác nhận chắc chắn khi cả hai kiểm định đồng thuận, tránh trường hợp kết quả mâu thuẫn do đặc thù của từng phương pháp.
-### 
+### 4.2.2. Cấu trúc mô hình ARIMA(p,d,q)
+Mô hình ARIMA bao gồm ba thành phần chính, được ký hiệu bằng bộ tham số (p, d, q):
+Thành phần AR — AutoRegressive (Tự hồi quy) — bậc p
+Thành phần AR mô tả mối quan hệ tuyến tính giữa giá trị hiện tại và p giá trị quá khứ của chuỗi. Mô hình AR(p) có dạng:
+$$
+Y_t = c + \phi_1 Y_{t-1} + \phi_2 Y_{t-2} + \dots + \phi_p Y_{t-p} + \varepsilon_t
+$$
+Trong đó ϕ1,ϕ2,…,ϕp  là các hệ số tự hồi quy, c là hằng số, và εt là nhiễu trắng. Bậc p được xác định dựa trên đồ thị PACF (Partial Autocorrelation Function) — bậc p tương ứng với độ trễ cuối cùng còn có ý nghĩa thống kê trên PACF.
+Thành phần I — Integrated (Tích hợp sai phân) — bậc d
+Thành phần I thể hiện số lần lấy sai phân cần thiết để chuyển chuỗi không dừng thành chuỗi dừng. Phép lấy sai phân bậc 1 được định nghĩa là:
+ΔYt=Yt−Yt−1
+Trong nghiên cứu này, chuỗi people_vaccinated_per_hundred là chuỗi tích lũy tăng dần, do đó cần lấy sai phân bậc 1 (d = 1) để chuyển về chuỗi biểu diễn tốc độ tiêm chủng hàng tuần. Bậc d được xác định thông qua kết quả kiểm định ADF và KPSS trên chuỗi gốc và các chuỗi sai phân.
+Thành phần MA — Moving Average (Trung bình trượt) — bậc q
+Thành phần MA mô tả sự phụ thuộc của giá trị hiện tại vào q sai số ngẫu nhiên trong quá khứ. Mô hình MA(q) có dạng:
+Yt= μ + εt + θ1*εt−1 + θ2*εt−2+ ⋯ + θq*εt−q
+Trong đó θ1,θ2,…,θq là các hệ số trung bình trượt và μ là giá trị trung bình của chuỗi. Bậc q được xác định dựa trên đồ thị ACF (Autocorrelation Function) — bậc q tương ứng với độ trễ cuối cùng còn có ý nghĩa thống kê trên ACF.
+Mô hình ARIMA(p, d, q) tổng quát:
+$$
+\Delta^d Y_t = c + \sum_{i=1}^{p} \phi_i \Delta^d Y_{t-i} + \varepsilon_t + \sum_{j=1}^{q} \theta_j \varepsilon_{t-j}
+$$
 # 5. Kết quả
