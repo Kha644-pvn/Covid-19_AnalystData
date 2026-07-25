@@ -950,4 +950,159 @@ $$Y_t = \mu + \varepsilon_t + \theta_1 \varepsilon_{t-1} + \theta_2 \varepsilon_
 $$
 \Delta^d Y_t = c + \sum_{i=1}^{p} \phi_i \Delta^d Y_{t-i} + \varepsilon_t + \sum_{j=1}^{q} \theta_j \varepsilon_{t-j}
 $$
+### Chuẩn bị dữ liệu
+Sau khi đã tiến hành tiền xử lý dữ liệu chung cho tập dữ liệu ban đầu là covid_data.csv thì tiếp theo chúng ta sẽ tiến hành xử lý cho mô hình ARIMA.
+#### Bước A: Weekly Resampling 
+Bước này được dùng để chuyển dữ liệu COVID từ dạng theo ngày (daily) sang dạng theo tuần (weekly) bằng phương pháp resample("W-MON"). Mục đích chính là giảm nhiễu dữ liệu, giảm số lượng bản ghi và giúp quá trình phân tích hoặc huấn luyện mô hình Machine Learning hiệu quả hơn. Trong quá trình resample, các nhóm cột sẽ được xử lý khác nhau: những cột mang tính cố định như dân số, GDP hay tuổi trung vị sẽ lấy giá trị đầu tuần (first()); các cột mang tính tích luỹ như tổng ca nhiễm, tổng ca tử vong hay số người tiêm vaccine sẽ lấy giá trị cuối tuần (last()); còn các dữ liệu thay đổi hằng ngày sẽ được lấy trung bình theo tuần (mean()). Sau khi gom dữ liệu, chương trình tiếp tục kiểm tra và điền các giá trị bị thiếu bằng phương pháp forward-fill và backward-fill để đảm bảo dữ liệu hoàn chỉnh trước khi đưa vào phân tích hoặc xây dựng mô hình.
+```python
+print("\n" + "=" * 60)
+print("BƯỚC 6 — Weekly Resampling (W-MON)")
+print("=" * 60)
+
+RESAMPLE_FIRST = safe_cols([
+    "code", "continent", "population", "population_density",
+    "median_age", "life_expectancy", "gdp_per_capita",
+    "extreme_poverty", "diabetes_prevalence", "hospital_beds_per_thousand",
+], df)
+
+RESAMPLE_LAST = safe_cols([
+    "total_cases", "total_cases_per_million",
+    "total_deaths", "total_deaths_per_million",
+    "people_vaccinated", "people_vaccinated_per_hundred",
+    "people_fully_vaccinated", "people_fully_vaccinated_per_hundred",
+], df)
+
+already_assigned = set(RESAMPLE_FIRST + RESAMPLE_LAST + ["country", "date"])
+RESAMPLE_MEAN = [
+    c for c in df.columns
+    if c not in already_assigned
+    and df[c].dtype in [np.float64, np.int64, float, int]
+]
+
+print(f"\n  first (static)   : {len(RESAMPLE_FIRST)} cột")
+print(f"  last  (luỹ kế)   : {len(RESAMPLE_LAST)} cột")
+print(f"  mean  (hàng ngày): {len(RESAMPLE_MEAN)} cột")
+
+def resample_country(group):
+    group = group.set_index("date")
+    agg_first = group[RESAMPLE_FIRST].resample("W-MON").first() if RESAMPLE_FIRST else pd.DataFrame()
+    agg_last  = group[RESAMPLE_LAST].resample("W-MON").last()   if RESAMPLE_LAST  else pd.DataFrame()
+    agg_mean  = group[RESAMPLE_MEAN].resample("W-MON").mean()   if RESAMPLE_MEAN  else pd.DataFrame()
+    combined  = pd.concat([agg_first, agg_last, agg_mean], axis=1)
+    combined["country"] = group["country"].iloc[0]
+    return combined.reset_index().rename(columns={"date": "week_start"})
+
+print("\n  Đang resample...")
+weekly_parts = []
+for country in countries:
+    grp = df[df["country"] == country].copy()
+    weekly_parts.append(resample_country(grp))
+
+df_weekly = pd.concat(weekly_parts, ignore_index=True)
+
+cols_order = ["country", "week_start"] + [
+    c for c in df_weekly.columns if c not in ("country", "week_start")
+]
+df_weekly = df_weekly[cols_order]
+
+print(f"\n  Daily  : {df.shape[0]:,} hàng × {df.shape[1]} cột")
+print(f"  Weekly : {df_weekly.shape[0]:,} hàng × {df_weekly.shape[1]} cột")
+print(f"  Range  : {df_weekly['week_start'].min().date()} → {df_weekly['week_start'].max().date()}")
+
+print("\n  Số tuần mỗi quốc gia:")
+for country in countries:
+    n = len(df_weekly[df_weekly["country"] == country])
+    print(f"    {country:<20} {n:>4} tuần")
+
+# Fill missing phát sinh sau resample
+missing_after = df_weekly.isnull().sum()
+missing_after = missing_after[missing_after > 0]
+if missing_after.empty:
+    print("\n  ✅ Không có missing sau resample!")
+else:
+    print(f"\n  ⚠️  {len(missing_after)} cột missing sau resample — forward-fill lại:")
+    df_weekly[missing_after.index.tolist()] = (
+        df_weekly.groupby("country")[missing_after.index.tolist()]
+        .transform(lambda x: x.ffill().bfill())
+    )
+    print("  ✅ Đã fill xong!")
+```
+Kết quả thu được
+```python
+============================================================
+BƯỚC 6 — Weekly Resampling (W-MON)
+============================================================
+
+  first (static)   : 10 cột
+  last  (luỹ kế)   : 8 cột
+  mean  (hàng ngày): 8 cột
+
+  Đang resample...
+
+  Daily  : 15,715 hàng × 28 cột
+  Weekly : 2,247 hàng × 28 cột
+  Range  : 2020-01-06 → 2026-02-23
+
+  Số tuần mỗi quốc gia:
+    Vietnam              321 tuần
+    United States        321 tuần
+    China                321 tuần
+    United Kingdom       321 tuần
+    Brazil               321 tuần
+    India                321 tuần
+    South Africa         321 tuần
+
+  ✅ Không có missing sau resample!
+```
+#### Bước B: Data Transformation (Differencing)
+Bước này được sử dụng để biến đổi dữ liệu bằng phương pháp First-order Differencing nhằm chuyển dữ liệu tích luỹ về dạng thay đổi theo thời gian. Cột mục tiêu TARGET_COL là dữ liệu tích luỹ và bị giới hạn trong khoảng từ 0 đến 100 nên không phù hợp để áp dụng phép biến đổi log. Vì vậy, chương trình sử dụng diff(1) để tính hiệu giữa giá trị tuần hiện tại và tuần trước, từ đó tạo ra cột mới biểu diễn tốc độ thay đổi theo tuần, ví dụ như số phần trăm người được tiêm vaccine tăng thêm mỗi tuần. Việc này giúp chuỗi dữ liệu trở nên ổn định hơn, giảm xu hướng tăng dần liên tục của dữ liệu tích luỹ và hỗ trợ các mô hình phân tích chuỗi thời gian hoặc Machine Learning học hiệu quả hơn. Sau khi tính sai phân, các giá trị bị thiếu ở tuần đầu tiên sẽ được thay bằng 0, rồi chương trình in ra các thống kê như giá trị nhỏ nhất, lớn nhất, trung bình và độ lệch chuẩn cho từng quốc gia để kiểm tra đặc điểm của dữ liệu sau biến đổi.
+```python
+print("\n" + "=" * 60)
+print("BƯỚC 7 — Data Transformation (First-order Differencing)")
+print("=" * 60)
+print(f"""
+  Target : '{TARGET_COL}'
+  Loại   : luỹ kế, giới hạn [0, 100]
+  Lý do  : Log transform không phù hợp vì chuỗi bị chặn tại 100
+  Cách   : diff(1) → tốc độ tiêm chủng mỗi tuần
+""")
+
+DIFF_COL  = f"{TARGET_COL}_diff1"
+DIFF2_COL = f"{TARGET_COL}_diff2"
+
+for country in countries:
+    mask = df_weekly["country"] == country
+    df_weekly.loc[mask, DIFF_COL] = df_weekly.loc[mask, TARGET_COL].diff(1)
+
+df_weekly[DIFF_COL] = df_weekly.groupby("country")[DIFF_COL].transform(
+    lambda x: x.fillna(0)
+)
+
+print(f"  {'Quốc gia':<20} {'Min':>8} {'Max':>8} {'Mean':>8} {'Std':>8}")
+print("  " + "-" * 56)
+for country in countries:
+    sub = df_weekly[df_weekly["country"] == country][DIFF_COL]
+    print(f"  {country:<20} {sub.min():>8.3f} {sub.max():>8.3f} {sub.mean():>8.3f} {sub.std():>8.3f}")
+```
+Kết quả thu được
+```python
+============================================================
+BƯỚC 7 — Data Transformation (First-order Differencing)
+============================================================
+
+  Target : 'people_vaccinated_per_hundred'
+  Loại   : luỹ kế, giới hạn [0, 100]
+  Lý do  : Log transform không phù hợp vì chuỗi bị chặn tại 100
+  Cách   : diff(1) → tốc độ tiêm chủng mỗi tuần
+
+  Quốc gia                 Min      Max     Mean      Std
+  --------------------------------------------------------
+  Vietnam                0.000    7.429    0.283    0.953
+  United States          0.000    4.109    0.246    0.636
+  China                  0.000   43.644    0.288    3.043
+  United Kingdom         0.000    5.116    0.246    0.778
+  Brazil                 0.000    4.167    0.281    0.731
+  India                  0.000    2.959    0.225    0.546
+  South Africa           0.000    2.366    0.121    0.321
+```
 # 5. Kết quả
