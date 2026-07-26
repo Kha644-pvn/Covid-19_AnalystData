@@ -1,4 +1,7 @@
 ## Phân tích mối tương quan giữa số ca nhiễm mới trong ngày và số ca tử vong mới trong ngày để quan sát sự ảnh hưởng của 2 cột new_cases và new_deaths.
+
+![Biểu đồ DeathRace vs Country](BieuDo/0.jpg)
+
 1)	Brazil: Death Rate bắt đầu rất cao (~0.08) vào đầu năm 2020. Dao động mạnh trong suốt năm 2020–2021 với nhiều đỉnh nhỏ liên tục. Từ giữa năm 2022 trở đi, tỷ lệ tử vong giảm rõ rệt và duy trì ở mức thấp. Brazil có dịch kéo dài với nhiều đợt sóng nhỏ, cho thấy khả năng kiểm soát tử vong cải thiện chậm. Tổng thể là quốc gia có Death Rate cao và biến động mạnh trong giai đoạn đầu dịch.
 2)	China: có 2 đỉnh dịch cực lớn: đỉnh đầu ~0.6 vào đầu những năm 2020 và đỉnh thứ hai ~0.5 cuối năm 2022 - đầu năm 2023. Giữa hai đỉnh là giai đoạn Death_Rate rất thấp. Hai đợt bùng phát tử vong cách nhau rất xa phản ánh chính sách covid-19 nghiêm ngặt sau đó đột nhiên nới lỏng. Sau năm 2023, Death_Rate giảm mạnh và ổn định ở mức thấp.
 3)	South_Africa: Death Rate biến động rất mạnh với nhiều đỉnh cao (tối đa ~0.12). Xuất hiện nhiều đợt sóng liên tiếp trong giai đoạn 2020–2022. Sau năm 2022, tỷ lệ tử vong giảm rõ rệt nhưng vẫn còn dao động nhẹ. Đây là quốc gia có Death Rate cao và không ổn định nhất trong nhóm.
