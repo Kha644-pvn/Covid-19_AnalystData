@@ -1,1 +1,12 @@
+# Phân tích mối tương quan giữa số ca nhiễm mới trong ngày và số ca tử vong mới trong ngày để quan sát sự ảnh hưởng của 2 cột new_cases và new_deaths.
+## 1)	Brazil: Death Rate bắt đầu rất cao (~0.08) vào đầu năm 2020. Dao động mạnh trong suốt năm 2020–2021 với nhiều đỉnh nhỏ liên tục. Từ giữa năm 2022 trở đi, tỷ lệ tử vong giảm rõ rệt và duy trì ở mức thấp. Brazil có dịch kéo dài với nhiều đợt sóng nhỏ, cho thấy khả năng kiểm soát tử vong cải thiện chậm. Tổng thể là quốc gia có Death Rate cao và biến động mạnh trong giai đoạn đầu dịch.
+## 2)	China: có 2 đỉnh dịch cực lớn: đỉnh đầu ~0.6 vào đầu những năm 2020 và đỉnh thứ hai ~0.5 cuối năm 2022 - đầu năm 2023. Giữa hai đỉnh là giai đoạn Death_Rate rất thấp. Hai đợt bùng phát tử vong cách nhau rất xa phản ánh chính sách covid-19 nghiêm ngặt sau đó đột nhiên nới lỏng. Sau năm 2023, Death_Rate giảm mạnh và ổn định ở mức thấp.
+## 3)	South_Africa: Death Rate biến động rất mạnh với nhiều đỉnh cao (tối đa ~0.12). Xuất hiện nhiều đợt sóng liên tiếp trong giai đoạn 2020–2022. Sau năm 2022, tỷ lệ tử vong giảm rõ rệt nhưng vẫn còn dao động nhẹ. Đây là quốc gia có Death Rate cao và không ổn định nhất trong nhóm.
+## 4)	India: có nhiều đỉnh sắc nhọn, cao nhất đạt ~0.39 vào giữa năm 2021 (đợt Delta). Sau đợt Delta, Death Rate giảm mạnh nhưng vẫn xuất hiện thêm vài đỉnh nhỏ năm 2022–2023. Từ cuối 2023 trở đi, Death Rate gần như bằng 0. India có đặc trưng là các đợt bùng phát tử vong rất mạnh nhưng ngắn.
+## 5)	United Kingdom:  đỉnh cao nhất (~0.32) xuất hiện ngay đầu năm 2020. Sau đó giảm rất nhanh và duy trì ở mức thấp (0.01–0.05) với các đợt sóng nhỏ. Từ năm 2022 trở đi, Death Rate khá ổn định ở mức thấp. Anh kiểm soát tốt tử vong sau đợt dịch đầu tiên.
+## 6)	United States: Đỉnh cao đầu tiên ~0.085 vào năm 2020. Có nhiều đợt sóng rõ rệt trong năm 2020–2022, sau đó giảm dần. Từ năm 2023 trở đi, Death Rate giảm mạnh và duy trì ở mức rất thấp. Mỹ có quy mô tử vong cao ở giai đoạn đầu nhưng cải thiện rõ rệt sau vaccine.
+## 7)	Việt Nam: Có một đỉnh cực sắc và cao (~0.35) vào cuối năm 2020 / đầu năm 2021. Sau đỉnh này, Death Rate giảm rất nhanh và gần như bằng 0 từ giữa năm 2022 đến nay.Việt Nam có đặc trưng là một đợt bùng phát tử vong mạnh nhưng ngắn, sau đó kiểm soát rất tốt.
+
+# Phân tích mối tương quan giữa tỉ lệ tiêm vắc xin và tỉ lệ tỉ vong của người dân để tìm hiểu quy luật: Liệu tỉ lệ tiêm vắc xin cao có giúp giảm thiểu tỉ lệ tử vong hay không?
+
 
