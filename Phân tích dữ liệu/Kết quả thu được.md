@@ -11,27 +11,29 @@
 7)	Việt Nam: Có một đỉnh cực sắc và cao (~0.35) vào cuối năm 2020 / đầu năm 2021. Sau đỉnh này, Death Rate giảm rất nhanh và gần như bằng 0 từ giữa năm 2022 đến nay.Việt Nam có đặc trưng là một đợt bùng phát tử vong mạnh nhưng ngắn, sau đó kiểm soát rất tốt.
 
 ## Phân tích mối tương quan giữa tỉ lệ tiêm vắc xin và tỉ lệ tỉ vong của người dân để tìm hiểu quy luật: Liệu tỉ lệ tiêm vắc xin cao có giúp giảm thiểu tỉ lệ tử vong hay không?
-!(BieuDo/1.jpg)
+![](BieuDo/1.jpg)
 
 ⟶ Đồ thị biểu diễn mức độ tử vong và mức độ tiêm vaccinate ở Trung Quốc theo thời gian. Nhìn vào đồ thị ta thấy được ở những năm 2020-2022, khi mà tỉ lệ tiêm vắc-xin còn khá thấp thì tỉ lệ tử vong khi đó rất cao. Từ giữa năm 2021 trở về sau, khi mà tỉ lệ tiêm vắc-xin bắt đầu tăng cao thì khi đó tỉ lệ tử vong có xu hướng giảm đi.
 
-!(BieuDo/2.jpg)
+![](BieuDo/2.jpg)
+
 ⟶ Biểu đồ thể hiện mức độ tử vong và mức độ tiêm vắc-xin ở Việt Nam. Nhìn vào biểu đồ ra có thể thấy tỉ lệ tử vong ở Việt Nam là rất thấy. Mức cao nhất ghi nhận được chưa tới 0.05. Điều này cho thấy được sự thành công của Việt Nam trong việc kiểm soát dịch bệnh. Bên cạnh đó tỉ lệ tiêm vắc-xin ở việc nam cũng tăng cao từ giữa năm 2021.
 
-!(BieuDo/3.jpg)
+![](BieuDo/3.jpg)
+
 ⟶ Biểu đồ thể hiện tỉ lệ tử vong và tỉ lệ tiêm vắc xin ở Hoa Kỳ trong từng giai đoạn. Nhìn vào biểu đồ ta thấy trong những giai đoạn đầu chống dịch thì tỉ lệ tử vong cao hơn so với tỉ lệ tiêm phòng. Nhưng từ giai đoạn 2021 trở đi tỉ lệ tủ vong bắt đầu có xu hướng giảm do tỉ lệ tiêm vắc-xin bắt đầu tăng cao.
 
 ## Phân tích tỉ lệ được tiêm đủ mũi vắc xin so với những người được tiêm vắc xin
 
-!(BieuDo/4.jpg)
+![](BieuDo/4.jpg)
 
 ⟶ Biểu đồ biểu diễn tỉ lệ tiêm phòng đủ vắc-xin ở Trung Quốc qua từng năm. Nhìn vào biểu đồ ta có thể thấy trong những năm đầu của giai đoạn mới bắt đầu bùng phát dịch, số người được tiêm đủ vắc xin ở giai đoạn đầu vẫn rất cao. Nhưng sao đó dịch diễn biến phức tạp và lan rộng khiến vắc-xin thiếu hụt và phải chia đều cho toàn dân nên tỉ lệ những người tiêm đủ vắc-xin thấp dần. Đến cuối  những năm 2021 khi mà vắc-xin bắt đầu được nghiên cứu và thử nghiệm thành công cao hơn cũng như sản xuất mạnh hơn thì số người được tiêm đủ vắc-xin bắt đầu tăng mạnh và đỉnh điểm ở năm 2022 khi cứ 100 người được tiêm vắc-xin thì có tới hơn 90 đã tiêm đủ số mũi.
 
-!(BieuDo/5.jpg)
+![](BieuDo/5.jpg)
 
 ⟶ Biểu đồ cho thấy chiến dịch tiêm vaccine COVID-19 của Việt Nam diễn ra rất nhanh và hiệu quả. Từ cuối năm 2020 đến giữa năm 2021, tỷ lệ tiêm đầy đủ giảm mạnh xuống gần 0% (giai đoạn chờ vaccine và chuẩn bị). Từ cuối năm 2021 đến đầu năm 2022, tỷ lệ tăng bùng nổ, từ gần 0% vọt lên gần 95% chỉ trong vòng khoảng 4–5 tháng. Có một nhịp giảm nhẹ ngắn vào đầu năm 2022 (có thể do điều chỉnh dữ liệu hoặc trì hoãn một số nhóm), sau đó tiếp tục tăng và ổn định. Từ giữa năm 2022 đến năm 2026, tỷ lệ tiêm đầy đủ duy trì rất cao và ổn định ở mức ~95–98%.
 
-!(BieuDo/6.jpg)
+![](BieuDo/6.jpg)
 
 ⟶ Biểu đồ biểu diễn sô người tiêm đủ vắc-xin ở Brazil. Trong những năm đầu, số người được tiêm đủ mũi vắc-xin chiếm tỉ lệ khá thấp bởi sự khan hiếm vắc-xin. Trong giai đoạn từ năm 2021-2022 tỉ lệ này biến đổi lên xuống đầy biến động và tăng mạnh từ cuối năm 2022.
 
