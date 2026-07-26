@@ -1105,4 +1105,627 @@ BƯỚC 7 — Data Transformation (First-order Differencing)
   India                  0.000    2.959    0.225    0.546
   South Africa           0.000    2.366    0.121    0.321
 ```
+#### Bước C- Kiểm tra stationary (ADF + KPSS)
+Bước này được dùng để kiểm tra tính stationary (tính dừng) của chuỗi dữ liệu thời gian sau khi đã biến đổi bằng sai phân. Một chuỗi stationary là chuỗi có đặc điểm thống kê ổn định theo thời gian như trung bình và phương sai không thay đổi, đây là điều kiện rất quan trọng đối với nhiều mô hình phân tích chuỗi thời gian và dự báo. Chương trình sử dụng hai kiểm định phổ biến là ADF (Augmented Dickey-Fuller) và KPSS để đánh giá. Với ADF, nếu p-value < 0.05 thì chuỗi được xem là stationary; còn với KPSS, nếu p-value > 0.05 thì chuỗi cũng được xem là stationary. Kết luận chỉ được chấp nhận khi cả hai kiểm định đồng thuận. Chương trình sẽ kiểm tra cả chuỗi gốc và chuỗi sau sai phân bậc 1 (diff(1)), sau đó in ra các giá trị thống kê và kết luận cho từng quốc gia. Nếu sau diff(1) mà chuỗi vẫn chưa stationary, hệ thống sẽ tự động tiếp tục thực hiện sai phân bậc 2 (diff(2)) rồi kiểm tra lại để đảm bảo dữ liệu đạt trạng thái phù hợp trước khi đưa vào mô hình dự báo hoặc Machine Learning.
+```python
+print("\n" + "=" * 60)
+print("BƯỚC 8 — Kiểm tra Stationarity")
+print("=" * 60)
+print("""
+  ADF  : H0 = có unit root → p < 0.05 → Stationary ✅
+  KPSS : H0 = stationary   → p > 0.05 → Stationary ✅
+  Kết luận chắc chắn khi CẢ HAI đồng thuận.
+""")
+
+stat_results = []
+
+for country in countries:
+    sub = df_weekly[df_weekly["country"] == country]
+    stat_results.append(test_stationarity(sub[TARGET_COL], "original", country))
+    stat_results.append(test_stationarity(sub[DIFF_COL],   "diff(1)",  country))
+
+print(f"  {'Quốc gia':<20} {'Chuỗi':<12} {'ADF p':>8} {'ADF':>12} {'KPSS p':>8} {'KPSS':>12}  Kết luận")
+print("  " + "-" * 100)
+for r in stat_results:
+    adf_p_str  = f"{r['adf_p']:.4f}"  if r['adf_p']  is not None else "  N/A  "
+    kpss_p_str = f"{r['kpss_p']:.4f}" if r['kpss_p'] is not None else "  N/A  "
+    print(
+        f"  {r['country']:<20} {r['series']:<12} "
+        f"{adf_p_str:>8} {r['adf_stat']:>12} "
+        f"{kpss_p_str:>8} {r['kpss_stat']:>12}  {r['conclusion']}"
+    )
+
+# Tự động thêm diff(2) nếu cần
+needs_diff2 = [
+    r["country"] for r in stat_results
+    if r["series"] == "diff(1)" and "NON-STATIONARY" in r["conclusion"]
+]
+
+if not needs_diff2:
+    print("\n  ✅ Tất cả stationary sau diff(1)")
+else:
+    print(f"\n  ⚠️  {len(needs_diff2)} quốc gia cần diff(2): {needs_diff2}")
+    for country in needs_diff2:
+        mask = df_weekly["country"] == country
+        df_weekly.loc[mask, DIFF2_COL] = df_weekly.loc[mask, DIFF_COL].diff(1)
+        df_weekly[DIFF2_COL] = df_weekly.groupby("country")[DIFF2_COL].transform(
+            lambda x: x.fillna(0)
+        )
+    print(f"\n  Kết quả sau diff(2):")
+    print(f"  {'Quốc gia':<20} {'ADF p':>8} {'KPSS p':>8}  Kết luận")
+    print("  " + "-" * 60)
+    for country in needs_diff2:
+        sub = df_weekly[df_weekly["country"] == country]
+        r2  = test_stationarity(sub[DIFF2_COL], "diff(2)", country)
+        print(f"  {country:<20} {r2['adf_p']:>8.4f} {r2['kpss_p']:>8.4f}  {r2['conclusion']}")
+```
+Kết quả thu được 
+```python
+============================================================
+BƯỚC 8 — Kiểm tra Stationarity
+============================================================
+
+  ADF  : H0 = có unit root → p < 0.05 → Stationary ✅
+  KPSS : H0 = stationary   → p > 0.05 → Stationary ✅
+  Kết luận chắc chắn khi CẢ HAI đồng thuận.
+
+  Quốc gia             Chuỗi           ADF p           ADF   KPSS p         KPSS  Kết luận
+  ----------------------------------------------------------------------------------------------------
+  Vietnam              original       0.3786   Non-stat ❌   0.0100   Non-stat ❌  ❌ NON-STATIONARY
+  Vietnam              diff(1)        0.0621   Non-stat ❌   0.0998     Stat ✅  ⚠️ KẾT QUẢ MÂU THUẪN — cần xem xét thêm
+  United States        original       0.1183   Non-stat ❌   0.0100   Non-stat ❌  ❌ NON-STATIONARY
+  United States        diff(1)        0.0992   Non-stat ❌   0.0232   Non-stat ❌  ❌ NON-STATIONARY
+  China                original       0.2854   Non-stat ❌   0.0100   Non-stat ❌  ❌ NON-STATIONARY
+  China                diff(1)        0.0535   Non-stat ❌   0.0992     Stat ✅  ⚠️ KẾT QUẢ MÂU THUẪN — cần xem xét thêm
+  United Kingdom       original       0.0898   Non-stat ❌   0.0100   Non-stat ❌  ❌ NON-STATIONARY
+  United Kingdom       diff(1)        0.1155   Non-stat ❌   0.0307   Non-stat ❌  ❌ NON-STATIONARY
+  Brazil               original       0.1930   Non-stat ❌   0.0100   Non-stat ❌  ❌ NON-STATIONARY
+  Brazil               diff(1)        0.2475   Non-stat ❌   0.0360   Non-stat ❌  ❌ NON-STATIONARY
+  India                original       0.1131   Non-stat ❌   0.0100   Non-stat ❌  ❌ NON-STATIONARY
+  India                diff(1)        0.4388   Non-stat ❌   0.0188   Non-stat ❌  ❌ NON-STATIONARY
+  South Africa         original       0.2818   Non-stat ❌   0.0100   Non-stat ❌  ❌ NON-STATIONARY
+  South Africa         diff(1)        0.2086   Non-stat ❌   0.0384   Non-stat ❌  ❌ NON-STATIONARY
+
+  ⚠️  5 quốc gia cần diff(2): ['United States', 'United Kingdom', 'Brazil', 'India', 'South Africa']
+
+  Kết quả sau diff(2):
+  Quốc gia                ADF p    KPSS p  Kết luận
+  ------------------------------------------------------------
+  United States          0.0000    0.1000  ✅ STATIONARY
+  United Kingdom         0.0000    0.1000  ✅ STATIONARY
+  Brazil                 0.0000    0.1000  ✅ STATIONARY
+  India                  0.0000    0.1000  ✅ STATIONARY
+  South Africa           0.0000    0.1000  ✅ STATIONARY
+```
+#### Bước D: Phân rã chuỗi thời gian (Seasonal Decompose)
+Bước này được dùng để phân rã chuỗi thời gian nhằm tách dữ liệu thành các thành phần chính:
+
+Xu hướng (Trend)
+
+Mùa vụ (Seasonal)
+
+Nhiễu (Residual)
+
+Chương trình sử dụng mô hình cộng (additive) với chu kỳ mùa vụ là 52 tuần để phân tích theo năm. Hàm seasonal_decompose() được áp dụng để tính toán các tham số: trend_strength, seasonal_strength và residual_std. Kết quả được trực quan hóa thành biểu đồ 4 thành phần và lưu dưới dạng file ảnh cho từng quốc gia.
+```python
+print("\n" + "=" * 60)
+print("BƯỚC 9 — Phân rã chuỗi thời gian (Seasonal Decompose)")
+print("=" * 60)
+print("  Model: additive | Period: 52 tuần\n")
+
+decomp_summary = {}
+
+for country in countries:
+    sub = df_weekly[df_weekly["country"] == country].copy()
+    sub = sub.set_index("week_start")[TARGET_COL].dropna()
+
+    if len(sub) < 104:
+        print(f"  ⚠️  {country:<20} — quá ít dữ liệu ({len(sub)} tuần), bỏ qua")
+        decomp_summary[country] = {"trend_strength": 0, "seasonal_strength": 0, "residual_std": 0}
+        continue
+
+    try:
+        decomp = seasonal_decompose(sub, model="additive", period=52, extrapolate_trend="freq")
+
+        seasonal_strength = np.std(decomp.seasonal) / (
+            np.std(decomp.seasonal) + np.std(decomp.resid.dropna())
+        )
+        trend_strength = 1 - np.var(decomp.resid.dropna()) / np.var(
+            decomp.trend.dropna() + decomp.resid.dropna()
+        )
+        residual_std = np.std(decomp.resid.dropna())
+
+        decomp_summary[country] = {
+            "trend_strength":    round(trend_strength, 3),
+            "seasonal_strength": round(seasonal_strength, 3),
+            "residual_std":      round(residual_std, 3),
+        }
+
+        fig, axes = plt.subplots(4, 1, figsize=(14, 10))
+        fig.suptitle(f"Decomposition — {country}", fontsize=13, fontweight="bold")
+
+        axes[0].plot(sub.index, sub.values, color="#2563EB", linewidth=1.2)
+        axes[0].set_ylabel("Original"); axes[0].grid(True, alpha=0.3)
+
+        axes[1].plot(decomp.trend.index, decomp.trend.values, color="#16A34A", linewidth=1.5)
+        axes[1].set_ylabel("Trend"); axes[1].grid(True, alpha=0.3)
+        axes[1].annotate(f"Trend strength: {trend_strength:.2f}",
+                         xy=(0.02, 0.85), xycoords="axes fraction",
+                         fontsize=9, color="#16A34A", fontweight="bold")
+
+        axes[2].plot(decomp.seasonal.index, decomp.seasonal.values, color="#D97706", linewidth=1.0)
+        axes[2].set_ylabel("Seasonal"); axes[2].grid(True, alpha=0.3)
+        axes[2].annotate(f"Seasonal strength: {seasonal_strength:.2f}",
+                         xy=(0.02, 0.85), xycoords="axes fraction",
+                         fontsize=9, color="#D97706", fontweight="bold")
+
+        axes[3].plot(decomp.resid.index, decomp.resid.values, color="#DC2626", linewidth=0.8, alpha=0.8)
+        axes[3].axhline(0, color="black", linewidth=0.8, linestyle="--")
+        axes[3].set_ylabel("Residual"); axes[3].grid(True, alpha=0.3)
+
+        plt.tight_layout()
+        fname = f"decomposition_{country.replace(' ', '_')}.png"
+        plt.savefig(fname, dpi=120, bbox_inches="tight")
+        plt.close()
+
+        strength_label = "mạnh" if seasonal_strength > 0.4 else "yếu"
+        print(f"  {country:<20} trend={trend_strength:.2f} | seasonal={seasonal_strength:.2f} ({strength_label}) → 💾 {fname}")
+
+    except Exception as e:
+        print(f"  ⚠️  {country:<20} — lỗi: {e}")
+        decomp_summary[country] = {"trend_strength": 0, "seasonal_strength": 0, "residual_std": 0}
+```
+Kết quả thu được
+```python
+============================================================
+BƯỚC 9 — Phân rã chuỗi thời gian (Seasonal Decompose)
+============================================================
+  Model: additive | Period: 52 tuần
+
+  Vietnam              trend=0.98 | seasonal=0.30 (yếu) → 💾 decomposition_Vietnam.png
+  United States        trend=0.96 | seasonal=0.24 (yếu) → 💾 decomposition_United_States.png
+  China                trend=0.96 | seasonal=0.20 (yếu) → 💾 decomposition_China.png
+  United Kingdom       trend=0.94 | seasonal=0.25 (yếu) → 💾 decomposition_United_Kingdom.png
+  Brazil               trend=0.97 | seasonal=0.12 (yếu) → 💾 decomposition_Brazil.png
+  India                trend=0.98 | seasonal=0.19 (yếu) → 💾 decomposition_India.png
+  South Africa         trend=0.99 | seasonal=0.24 (yếu) → 💾 decomposition_South_Africa.png
+```
+#### Bước E: ACF / PACF Plot
+Bước này dùng đồ thị ACF (Autocorrelation Function) và PACF (Partial Autocorrelation Function) để hỗ trợ xác định tham số đầu vào cho mô hình ARIMA:
+ACF: Gợi ý bậc $q$ cho thành phần MA (Moving Average).
+PACF: Gợi ý bậc $p$ cho thành phần AR (AutoRegressive).
+Chương trình sử dụng chuỗi đã qua biến đổi sai phân, dựa trên khoảng tin cậy 95% để tìm ra các độ trễ (lag) có ý nghĩa thống kê và tự động gợi ý giá trị khởi tạo cho $(p, q)$.
+```python
+print("\n" + "=" * 60)
+print("BƯỚC 10 — ACF / PACF (xác định p, q)")
+print("=" * 60)
+
+acf_pacf_summary = {}
+
+for country in countries:
+    sub    = df_weekly[df_weekly["country"] == country].copy()
+    series = sub[DIFF_COL].dropna()
+
+    if len(series) < 30:
+        print(f"  ⚠️  {country:<20} — quá ít dữ liệu, bỏ qua")
+        acf_pacf_summary[country] = {"suggest_p": 1, "suggest_q": 1}
+        continue
+
+    lags = min(40, len(series) // 2 - 1)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 4))
+    fig.suptitle(f"ACF & PACF — {country}", fontsize=12, fontweight="bold")
+
+    plot_acf( series, ax=axes[0], lags=lags, alpha=0.05, color="#2563EB")
+    plot_pacf(series, ax=axes[1], lags=lags, alpha=0.05, color="#DC2626", method="ywm")
+
+    for ax in axes:
+        ax.grid(True, alpha=0.3)
+        ax.set_xlabel("Lag (tuần)")
+
+    acf_vals,  acf_confint  = acf( series, nlags=lags, alpha=0.05)
+    pacf_vals, pacf_confint = pacf(series, nlags=lags, alpha=0.05, method="ywm")
+
+    sig_acf  = [i for i in range(1, len(acf_vals))
+                if acf_vals[i] > acf_confint[i, 1] - acf_vals[i]
+                or acf_vals[i] < acf_confint[i, 0] - acf_vals[i]]
+    sig_pacf = [i for i in range(1, len(pacf_vals))
+                if pacf_vals[i] > pacf_confint[i, 1] - pacf_vals[i]
+                or pacf_vals[i] < pacf_confint[i, 0] - pacf_vals[i]]
+
+    suggest_q = sig_acf[0]  if sig_acf  else 1
+    suggest_p = sig_pacf[0] if sig_pacf else 1
+
+    acf_pacf_summary[country] = {"suggest_p": suggest_p, "suggest_q": suggest_q}
+
+    axes[0].set_title(f"ACF  → gợi ý q = {suggest_q}", fontsize=10)
+    axes[1].set_title(f"PACF → gợi ý p = {suggest_p}", fontsize=10)
+
+    plt.tight_layout()
+    fname = f"acf_pacf_{country.replace(' ', '_')}.png"
+    plt.savefig(fname, dpi=120, bbox_inches="tight")
+    plt.close()
+
+    print(f"  {country:<20} gợi ý p={suggest_p}, q={suggest_q}  → 💾 {fname}")
+```
+Kết quả thu được
+```python
+============================================================
+BƯỚC 10 — ACF / PACF (xác định p, q)
+============================================================
+  Vietnam              gợi ý p=1, q=1  → 💾 acf_pacf_Vietnam.png
+  United States        gợi ý p=1, q=1  → 💾 acf_pacf_United_States.png
+  China                gợi ý p=11, q=11 → 💾 acf_pacf_China.png
+  United Kingdom       gợi ý p=1, q=1  → 💾 acf_pacf_United_Kingdom.png
+  Brazil               gợi ý p=1, q=1  → 💾 acf_pacf_Brazil.png
+  India                gợi ý p=1, q=1  → 💾 acf_pacf_India.png
+  South Africa         gợi ý p=1, q=1  → 💾 acf_pacf_South_Africa.png
+```
+#### Bước F: Xác định d và chuỗi INPUT ARIMA
+Trong bước này, chương trình xác định bậc sai phân $d$ thích hợp dựa trên kết quả kiểm định tính dừng thu được ở bước trước:
+Nếu chuỗi gốc đạt dừng $\rightarrow d = 0$ (dùng chuỗi gốc).
+Nếu dừng sau sai phân bậc 1 $\rightarrow d = 1$ (dùng cột diff1).
+Nếu chưa dừng sau sai phân bậc 1 $\rightarrow d = 2$ (dùng cột diff2).
+Lưu ý: Các đặc trưng thời gian như year, month, quarter, week_of_year được tạo thêm chỉ nhằm mục đích phân tích khám phá (EDA) và trực quan hóa, không được đưa trực tiếp vào mô hình ARIMA đơn biến.
+```python
+print("\n" + "=" * 60)
+print("BƯỚC 11 — Xác định d và chuỗi input ARIMA")
+print("=" * 60)
+
+# Thêm datetime features (metadata / EDA, KHÔNG đưa vào ARIMA)
+df_weekly["year"]         = df_weekly["week_start"].dt.year
+df_weekly["month"]        = df_weekly["week_start"].dt.month
+df_weekly["quarter"]      = df_weekly["week_start"].dt.quarter
+df_weekly["week_of_year"] = df_weekly["week_start"].dt.isocalendar().week.astype(int)
+df_weekly["is_q1"]        = (df_weekly["quarter"] == 1).astype(int)
+df_weekly["is_q4"]        = (df_weekly["quarter"] == 4).astype(int)
+
+print("  ⚠️  DateTime features (year/month/quarter/...) chỉ dùng EDA, KHÔNG đưa vào ARIMA")
+
+arima_input_col = {}
+print(f"\n  {'Quốc gia':<20} {'d':>3}  Chuỗi input ARIMA")
+print("  " + "-" * 55)
+
+for country in countries:
+    non_stat_orig = any(
+        r["conclusion"] == "❌ NON-STATIONARY"
+        for r in stat_results if r["country"] == country and r["series"] == "original"
+    )
+    stat_d1 = any(
+        r["conclusion"] == "✅ STATIONARY"
+        for r in stat_results if r["country"] == country and r["series"] == "diff(1)"
+    )
+
+    if not non_stat_orig:
+        d, col = 0, TARGET_COL
+    elif stat_d1:
+        d, col = 1, DIFF_COL
+    else:
+        d, col = 2, DIFF2_COL if DIFF2_COL in df_weekly.columns else DIFF_COL
+
+    arima_input_col[country] = {"d": d, "col": col}
+    print(f"  {country:<20} {d:>3}  '{col}'")
+```
+Kết quả thu được
+```python
+============================================================
+BƯỚC 11 — Xác định d và chuỗi input ARIMA
+============================================================
+  ⚠️  DateTime features (year/month/quarter/...) chỉ dùng EDA, KHÔNG đưa vào ARIMA
+
+  Quốc gia               d  Chuỗi input ARIMA
+  -------------------------------------------------------
+  Vietnam                2  'people_vaccinated_per_hundred_diff2'
+  United States          2  'people_vaccinated_per_hundred_diff2'
+  China                  2  'people_vaccinated_per_hundred_diff2'
+  United Kingdom         2  'people_vaccinated_per_hundred_diff2'
+  Brazil                 2  'people_vaccinated_per_hundred_diff2'
+  India                  2  'people_vaccinated_per_hundred_diff2'
+  South Africa           2  'people_vaccinated_per_hundred_diff2'
+```
+#### Bước G: Train/Test Split (theo thời gian)
+Bước này được dùng để chia dữ liệu thành hai tập Train và Test để đánh giá mô hình.
+
+Thay vì phân chia ngẫu nhiên, hệ thống áp dụng phương pháp Time-based Split (phân chia theo thứ tự thời gian) nhằm giữ nguyên thứ tự chuỗi và tuyệt đối tránh hiện tượng Data Leakage. Đối với từng quốc gia, TEST_WEEKS (52 tuần cuối cùng) được giữ lại làm tập kiểm tra, phần dữ liệu còn lại được dùng để huấn luyện.
+```python
+print("\n" + "=" * 60)
+print(f"BƯỚC 12 — Train/Test Split (test = {TEST_WEEKS} tuần cuối)")
+print("=" * 60)
+print("  ⚠️  Time-based split — KHÔNG random (tránh data leakage)\n")
+
+split_summary = {}
+
+for country in countries:
+    sub       = df_weekly[df_weekly["country"] == country].copy().reset_index(drop=True)
+    input_col = arima_input_col[country]["col"]
+    series    = sub[input_col].dropna()
+
+    if len(series) <= TEST_WEEKS:
+        print(f"  ⚠️  {country:<20} — quá ít dữ liệu")
+        continue
+
+    n_train = len(series) - TEST_WEEKS
+    split_summary[country] = {
+        "train_start": sub["week_start"].iloc[0].date(),
+        "train_end":   sub["week_start"].iloc[n_train - 1].date(),
+        "test_start":  sub["week_start"].iloc[n_train].date(),
+        "test_end":    sub["week_start"].iloc[-1].date(),
+        "n_train":     n_train,
+        "n_test":      TEST_WEEKS,
+    }
+    print(
+        f"  {country:<20} "
+        f"Train: {n_train:>4} tuần ({sub['week_start'].iloc[0].date()} → {sub['week_start'].iloc[n_train-1].date()})  |  "
+        f"Test: {TEST_WEEKS:>4} tuần ({sub['week_start'].iloc[n_train].date()} → {sub['week_start'].iloc[-1].date()})"
+    )
+
+df_weekly["split"] = "train"
+for country, info in split_summary.items():
+    mask_test = (
+        (df_weekly["country"] == country) &
+        (df_weekly["week_start"] >= pd.Timestamp(info["test_start"]))
+    )
+    df_weekly.loc[mask_test, "split"] = "test"
+
+print(f"\n  Tổng Train : {(df_weekly['split']=='train').sum():,}")
+print(f"  Tổng Test  : {(df_weekly['split']=='test').sum():,}")
+```
+Kết quả thu được
+```python
+============================================================
+BƯỚC 12 — Train/Test Split (test = 52 tuần cuối)
+============================================================
+  ⚠️  Time-based split — KHÔNG random (tránh data leakage)
+
+  Vietnam              Train:  269 tuần (2020-01-06 → 2025-02-24)  |  Test:   52 tuần (2025-03-03 → 2026-02-23)
+  United States        Train:  269 tuần (2020-01-06 → 2025-02-24)  |  Test:   52 tuần (2025-03-03 → 2026-02-23)
+  China                Train:  269 tuần (2020-01-06 → 2025-02-24)  |  Test:   52 tuần (2025-03-03 → 2026-02-23)
+  United Kingdom       Train:  269 tuần (2020-01-06 → 2025-02-24)  |  Test:   52 tuần (2025-03-03 → 2026-02-23)
+  Brazil               Train:  269 tuần (2020-01-06 → 2025-02-24)  |  Test:   52 tuần (2025-03-03 → 2026-02-23)
+  India                Train:  269 tuần (2020-01-06 → 2025-02-24)  |  Test:   52 tuần (2025-03-03 → 2026-02-23)
+  South Africa         Train:  269 tuần (2020-01-06 → 2025-02-24)  |  Test:   52 tuần (2025-03-03 → 2026-02-23)
+
+  Tổng Train : 1,883
+  Tổng Test  : 364
+```
+#### Bước H: Grid Search (p,d,q) – Tiêu chí AIC
+Bước này được dùng để tìm bộ tham số tối ưu cho mô hình ARIMA bằng phương pháp Grid Search. Cụ thể, chương trình sẽ thử nhiều tổ hợp khác nhau của hai tham số p và q trong các khoảng giá trị đã định trước (P_RANGE và Q_RANGE), trong khi giá trị d đã được xác định ở bước trước dựa trên kiểm tra stationary. Với mỗi quốc gia, hệ thống lấy tập dữ liệu train rồi huấn luyện nhiều mô hình ARIMA khác nhau tương ứng với từng cặp (p, q). Sau khi huấn luyện, mô hình sẽ được đánh giá bằng các chỉ số AIC và BIC, trong đó AIC được sử dụng làm tiêu chí chính để chọn mô hình tốt nhất. AIC càng nhỏ thì mô hình càng phù hợp với dữ liệu mà vẫn tránh được hiện tượng quá phức tạp (overfitting). Chương trình sẽ lưu lại bộ tham số (p, d, q) có AIC thấp nhất và in ra Top 5 mô hình tốt nhất cho từng quốc gia để dễ so sánh. Nếu dữ liệu huấn luyện quá ít, hệ thống sẽ dùng mặc định p=1 và q=1. Mục đích chính của bước này là tự động tìm ra cấu hình ARIMA phù hợp nhất cho từng chuỗi thời gian, giúp cải thiện độ chính xác của mô hình dự báo.
+```python
+print("\n" + "=" * 65)
+print("BƯỚC 13 — Grid Search tham số ARIMA")
+print(f"          p ∈ {list(P_RANGE)}, q ∈ {list(Q_RANGE)} | tiêu chí: AIC")
+print("=" * 65)
+
+best_params = {}
+
+for country in countries:
+    sub     = df_weekly[df_weekly["country"] == country]
+    col     = arima_input_col[country]["col"]
+    d       = arima_input_col[country]["d"]
+    train_s = sub[sub["split"] == "train"][col].dropna().values
+
+    if len(train_s) < WF_MIN_TRAIN_WEEKS:
+        print(f"  ⚠️  {country:<20} — ít dữ liệu, dùng p=1, q=1")
+        best_params[country] = {"p": 1, "d": d, "q": 1, "aic": None}
+        continue
+
+    best_aic     = np.inf
+    best_pq      = (1, 1)
+    results_grid = []
+    for p, q in itertools.product(P_RANGE, Q_RANGE):
+        if p == 0 and q == 0:
+            continue
+        try:
+            fit = ARIMA(train_s, order=(p, d, q)).fit()
+            results_grid.append((p, q, round(fit.aic, 2), round(fit.bic, 2)))
+            if fit.aic < best_aic:
+                best_aic = fit.aic
+                best_pq  = (p, q)
+        except Exception:
+            continue
+
+    best_params[country] = {
+        "p": best_pq[0], "d": d, "q": best_pq[1],
+        "aic": round(best_aic, 2)
+    }
+
+    results_grid.sort(key=lambda x: x[2])
+    print(f"\n  {country} — Top 5 AIC:")
+    print(f"    {'(p,d,q)':<12} {'AIC':>10} {'BIC':>10}")
+    for row in results_grid[:5]:
+        star = " ← best" if (row[0], row[1]) == best_pq else ""
+        print(f"    ({row[0]},{d},{row[1]}){'':<6} {row[2]:>10.2f} {row[3]:>10.2f}{star}")
+
+```
+Kết quả thu được
+```python
+BƯỚC 13 — Grid Search tham số ARIMA
+          p ∈ [0, 1, 2, 3], q ∈ [0, 1, 2, 3] | tiêu chí: AIC
+Vietnam — Top 5 AIC:
+    (p,d,q)             AIC        BIC
+    (0,2,1)         -6069.42   -6062.24 ← best
+    (1,2,0)         -6069.42   -6062.24
+    (0,2,2)         -6067.42   -6056.66
+    (1,2,1)         -6067.42   -6056.66
+    (2,2,0)         -6067.42   -6056.66
+
+United States — Top 5 AIC:
+    (p,d,q)             AIC        BIC
+    (1,2,2)          -225.18    -210.83 ← best
+    (2,2,2)          -223.69    -205.75
+    (0,2,3)          -223.47    -209.12
+    (0,2,2)          -212.19    -201.42
+    (1,2,3)          -208.18    -190.24
+
+China — Top 5 AIC:
+    (p,d,q)             AIC        BIC
+    (0,2,1)         -6069.42   -6062.24 ← best
+    (1,2,0)         -6069.42   -6062.24
+    (0,2,2)         -6067.42   -6056.66
+    (1,2,1)         -6067.42   -6056.66
+    (2,2,0)         -6067.42   -6056.66
+United Kingdom — Top 5 AIC:
+    (p,d,q)             AIC        BIC
+    (0,2,2)           185.31     196.07 ← best
+    (0,2,3)           186.27     200.62
+    (1,2,2)           186.34     200.69
+    (2,2,2)           188.22     206.16
+    (1,2,3)           189.16     207.10
+Brazil — Top 5 AIC:
+    (p,d,q)             AIC        BIC
+    (0,2,2)           -72.94     -62.18 ← best
+    (1,2,2)           -71.69     -57.34
+    (0,2,3)           -71.66     -57.31
+    (1,2,3)           -69.02     -51.08
+    (3,2,2)           -67.26     -45.74
+India — Top 5 AIC:
+    (p,d,q)             AIC        BIC
+    (2,2,3)           -42.81     -21.29 ← best
+    (3,2,3)           -40.49     -15.38
+    (0,2,3)           -39.64     -25.29
+    (1,2,2)           -39.20     -24.85
+    (1,2,3)           -38.03     -20.09
+South Africa — Top 5 AIC:
+    (p,d,q)             AIC        BIC
+    (0,2,3)           -86.89     -72.54 ← best
+    (1,2,3)           -85.27     -67.33
+    (3,2,2)           -83.41     -61.89
+    (2,2,2)           -75.14     -57.20
+    (3,2,3)           -70.46     -45.35
+
+```
+#### Bước I: Walk-Forward Validation
+Bước này được dùng để đánh giá mô hình ARIMA bằng phương pháp Walk-Forward Validation với cơ chế Expanding Window. Đây là cách kiểm tra rất phổ biến trong bài toán dự báo chuỗi thời gian vì nó mô phỏng đúng tình huống thực tế: tại mỗi thời điểm, mô hình chỉ được phép học từ dữ liệu quá khứ và dự đoán cho tương lai, tuyệt đối không sử dụng dữ liệu phía sau để tránh data leakage. Với mỗi quốc gia, chương trình lấy bộ tham số ARIMA tối ưu (p, d, q) đã tìm được ở bước trước, sau đó bắt đầu từ tập train ban đầu và liên tục mở rộng cửa sổ dữ liệu huấn luyện theo thời gian. Ở mỗi bước t, mô hình sẽ được train trên dữ liệu từ đầu chuỗi đến thời điểm t-1, rồi dự đoán cho tuần t. Quá trình này được lặp lại cho đến hết tập test để thu được toàn bộ giá trị dự đoán và giá trị thực tế. Sau cùng, chương trình tính các chỉ số đánh giá gồm MAE, RMSE và MAPE nhằm đo mức độ sai số của mô hình. Nếu mô hình ARIMA gặp lỗi trong quá trình dự báo, hệ thống sẽ sử dụng phương pháp dự đoán đơn giản (naive forecast) bằng cách lấy giá trị cuối cùng của chuỗi train làm dự báo. Mục đích chính của bước này là đánh giá khả năng dự báo thực tế của mô hình ARIMA một cách khách quan và sát với điều kiện triển khai ngoài thực tế.
+```python
+print("\n" + "=" * 65)
+print("BƯỚC 14 — Walk-Forward Validation (Expanding Window)")
+print("=" * 65)
+print("""
+  Tại mỗi bước t: train trên [0..t-1], predict bước t.
+  Mô phỏng dự báo thực tế — không dùng dữ liệu tương lai.
+""")
+
+wf_results = {}
+
+for country in countries:
+    sub     = df_weekly[df_weekly["country"] == country].copy().reset_index(drop=True)
+    col     = arima_input_col[country]["col"]
+    p, d, q = best_params[country]["p"], best_params[country]["d"], best_params[country]["q"]
+    series  = sub[col].dropna().values
+    dates   = sub["week_start"].values
+
+    if len(series) <= TEST_WEEKS + WF_MIN_TRAIN_WEEKS:
+        print(f"  ⚠️  {country:<20} — không đủ dữ liệu walk-forward")
+        continue
+
+    n_train         = len(series) - TEST_WEEKS
+    actuals, preds  = [], []
+
+    for t in range(n_train, len(series)):
+        train_window = series[:t]
+        try:
+            pred = ARIMA(train_window, order=(p, d, q)).fit().forecast(steps=1)[0]
+        except Exception:
+            pred = train_window[-1]   # fallback: naive
+        actuals.append(series[t])
+        preds.append(pred)
+
+    mae_val  = mean_absolute_error(actuals, preds)
+    rmse_val = np.sqrt(mean_squared_error(actuals, preds))
+    mape_val = mape(actuals, preds)
+
+    wf_results[country] = {
+        "mae":     round(mae_val, 4),
+        "rmse":    round(rmse_val, 4),
+        "mape":    round(mape_val, 2),
+        "actuals": actuals,
+        "preds":   preds,
+        "dates":   dates[n_train:]
+    }
+    print(f"  {country:<20} MAE={mae_val:.4f} | RMSE={rmse_val:.4f} | MAPE={mape_val:.2f}%")
+
+```
+### Phân tích dữ liệu
+```python
+countries = [
+    'China', 'United Kingdom', 'Vietnam',
+    'India', 'United States', 'Brazil', 'South Africa'
+]
+# 1. sort theo thời gian
+df = df.sort_values(['country', 'date'])
+
+#------- Phân tích mối tương quan giữa new_cases và new_deaths--------
+# làm mượt dữ liệu sau khi tạo cột mức độ nguy hiểm
+df['death_rate_smooth'] = (
+    df.groupby('country')['death_rate']
+    .rolling(7)
+    .mean()
+    .reset_index(0, drop=True)
+)
+
+df_filtered = df[df['country'].isin(countries)]
+g = sns.FacetGrid(
+    df_filtered,
+    col='country',
+    col_wrap=3,
+    height=4,
+    sharey=False
+)
+g.map_dataframe(
+    sns.lineplot,
+    x='date',
+    y='death_rate_smooth'
+)
+g.set_titles("{col_name}")
+g.set_axis_labels("Date", "Death Rate")
+plt.show()
+
+#---Phân tích mối tương quan giữa tỉ lệ tủ vong và tỉ lệ tiêm vacxin--
+df['Ti_Le_Tu_Vong_smooth'] = (
+    df.groupby('country')['Ti_Le_Tu_Vong']
+    .rolling(7)
+    .mean()
+    .reset_index(0, drop=True)
+)
+df['Ti_Le_Tiem_smooth'] = (
+    df.groupby('country')['Ti_Le_Tiem']
+    .rolling(7)
+    .mean()
+    .reset_index(0, drop=True)
+)
+# vẽ biểu đồ
+for country in countries:
+    data = df[df['country'] == country]
+    plt.figure(figsize=(10,5))
+    plt.plot(data['date'], data['Ti_Le_Tu_Vong_smooth'], label='Death Rate')
+    plt.plot(data['date'], data['Ti_Le_Tiem_smooth'], label='Vaccination Rate')
+    plt.title(country)
+    plt.legend()
+    plt.xticks(rotation=45)
+    plt.show()
+
+#-Phân tích số người được tiêm đủ vắc xin so với số người được tiêm đủ vắc xin------------
+df['Ti_Le_Tiem_Du_VacXin_smooth'] = (
+    df.groupby('country')['Ti_Le_Tiem_Du_VacXin']
+    .rolling(7)
+    .mean()
+    .reset_index(0, drop=True)
+)
+for country in countries:
+    data = df[df['country'] == country]
+    plt.figure(figsize=(10,5))
+    plt.plot(data['date'], data['Ti_Le_Tiem_Du_VacXin_smooth'],
+             label='Fully Vaccinated Ratio')
+    plt.title(country)
+    plt.xlabel('Date')
+    plt.ylabel('Ratio')
+    plt.legend()
+    plt.xticks(rotation=45)
+    plt.show()
+# xuất ra file csv
+# df_new.to_csv('data_filtered.csv',index=False)
+
+```
+Kết quả quá trình phân tích:
+
 # 5. Kết quả
